@@ -40,6 +40,7 @@ zephyr_compile_definitions(DEBUG=1)
 zephyr_library_sources(
 	../DebugUtilities.c
 	../CRCUtilities.c
+	../HexUtilities.c
 	)
 
 zephyr_library_include_directories(

@@ -131,28 +131,26 @@ int			ParseHexUInt64( const char *str, uint64_t *val )
 			break;
 		}
 	}
-	
+
 	*val = v;
 	result = 0;
-	
+
 exit:
 
 	return result;
 }
 
 
-
-
-char*		HexEncode( const void *bytes, size_t amount )
+char*		HexEncodeToBuffer( const void* bytes, size_t amount, char *inBuffer, size_t inBufferSize )
 {
+	char * result = NULL;
 	size_t		i;
 	uint8_t		v;
-	char* result;
 	char* pos;
 	const uint8_t* inBytes = (const uint8_t*)bytes;
 
-	result = (char*)malloc( amount * 2 + 1 );
-	require( result != NULL, exit );
+	require( inBufferSize >= ( amount * 2 + 1 ), exit );
+	result = inBuffer;
 
 	pos = result;
 	for ( i = 0; i < amount; i++ )
@@ -165,6 +163,26 @@ char*		HexEncode( const void *bytes, size_t amount )
 	pos[0] = 0;
 
 exit:
+
+	return result;
+}
+
+char*		HexEncode( const void *bytes, size_t amount )
+{
+	char* result = NULL;
+	char* temp = NULL;
+
+	temp = (char*)malloc( amount * 2 + 1 );
+	require( temp != NULL, exit );
+
+	result = HexEncodeToBuffer( bytes, amount, temp, ( amount * 2 + 1 ) );
+	require( result != NULL, exit );
+
+	temp = NULL;
+
+exit:
+
+	ForgetMem( &temp );
 
 	return result;
 }

@@ -42,6 +42,8 @@ extern "C"{
 
 int			HexEncodeByte( uint8_t val, char *bytes );
 char*		HexEncodeByteString( uint8_t val, char *bytes );
+char*		HexEncodeToBuffer( const void* bytes, size_t amount, char *inBuffer, size_t inBufferSize );
+// must be freed
 char*		HexEncode( const void*, size_t amount );
 
 
