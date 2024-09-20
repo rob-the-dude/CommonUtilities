@@ -43,9 +43,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-void dlog_platform( const char *msg );
-
-
 #if DEBUG
 
 #ifndef DEBUG_INCLUDE_TIME_STAMPS
@@ -116,7 +113,7 @@ void dlog_set_level( int level )
 	dlog_init_internal();
 }
 
-static int dlog_internal( const char *procname, const char *timestamp, const char * fmt, va_list args )
+static int dlog_internal( const char *procname, const char *timestamp, bool add_nl, const char * fmt, va_list args )
 {
 	int result = 0;
 	
@@ -150,6 +147,10 @@ static int dlog_internal( const char *procname, const char *timestamp, const cha
 
 	result = fprintf( gDebugLogFile, "[%s]%s", procname != NULL ? procname : "", timestamp != NULL ? timestamp : "" );
 	result += vfprintf( gDebugLogFile, fmt, args );
+	if ( add_nl )
+	{
+		result += fprintf( gDebugLogFile, "\n" );
+	}
 
 #if TARGET_OS_FREERTOS
 	if ( semTaken )
@@ -179,23 +180,7 @@ void dlog_set_file( FILE * f )
 	gDebugLogFile = f;
 }
 
-int dlog_out( bool addNL, const char * fmt, va_list args )
-{
-	int result;
-	
-	result = dlog_internal( NULL, NULL, fmt, args );
-	if ( addNL )
-	{
-		//va_list	more_args = 0;	// uninitialized, but we don't actually use any of the args for this print
-		result += dlog_internal( NULL, NULL, "\n", args );//more_args );
-	}
-
-	return result;
-}
-
-
-
-int dlog( int debugLevel, const char *fmt, ... )
+int dlog_imp( int debugLevel, bool add_nl, const char *fmt, ... )
 {
 	int			result;
 	va_list		args;
@@ -231,7 +216,7 @@ int dlog( int debugLevel, const char *fmt, ... )
 #endif
 
 #if TARGET_OS_ZEPHYR
-	#warning "TODO: fetch task name"
+	procname = k_thread_name_get( k_current_get() );
 #endif
 
 	if ( gDebugIncludeTimeStamps )
@@ -248,7 +233,7 @@ int dlog( int debugLevel, const char *fmt, ... )
 	}
 
 	va_start( args, fmt );
-	result = dlog_internal( procname, timestamp, fmt, args );
+	result = dlog_internal( procname, timestamp, add_nl, fmt, args );
 	va_end( args );
 	
 exit:
@@ -284,7 +269,7 @@ static void dlog_dump_hex_internal_helper( const char *fmt, ... )
 {
 	va_list args;
 	va_start( args, fmt );
-	dlog_internal( NULL, NULL, fmt, args );
+	dlog_internal( NULL, NULL, false, fmt, args );
 	va_end( args );
 }
 
@@ -566,87 +551,6 @@ bool debug_running_in_debugger( void )
 
 #endif
 
-#if TARGET_OS_FREERTOS
-
-// should we just get rid of this and let them fprintf to stderr?
-//	seems dumb to have several copies of the same thing, and they add no value (procname, timestamp are not passed in...)
-
-int lwip_dlog( const char * fmt, ... )
-{
-	int result;
-	const char 	*procname = NULL;
-	const char	*timestamp = NULL;
-	char 		timestamp_buffer[80];
-	va_list args;
-
-	TaskHandle_t task = xTaskGetCurrentTaskHandle();
-	if ( task != NULL )
-	{
-		procname = pcTaskGetName( task );
-	}
-
-	if ( gDebugIncludeTimeStamps )
-	{
-		time_t 		now;
-		struct tm 	*tm;
-
-		time( &now );
-
-		tm = localtime( &now );
-
-		snprintf( timestamp_buffer, sizeof( timestamp_buffer ), " %04d-%02d-%02d %02d:%02d:%02d : ", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec );
-		timestamp = timestamp_buffer;
-	}
-
-
-	va_start( args, fmt );
-	result = dlog_internal( procname, timestamp, fmt, args );
-	va_end( args );
-
-	return result;
-}
-
-int ot_dlog( const char * fmt, ... )
-{
-	int result;
-	va_list args;
-
-	va_start( args, fmt );
-	result = dlog_internal( NULL, NULL, fmt, args );
-	va_end( args );
-
-	return result;
-}
-
-int freeRTOS_dlog( const char * fmt, ... )
-{
-	int result;
-	va_list args;
-
-	va_start( args, fmt );
-	result = dlog_internal( NULL, NULL, fmt, args );
-	va_end( args );
-
-	return result;
-}
-
-int umm_dlog( const char * fmt, ... )
-{
-	int result;
-	va_list args;
-
-	va_start( args, fmt );
-	result = dlog_internal( NULL, NULL, fmt, args );
-	va_end( args );
-
-	return result;
-}
-#endif
-
-// HACK
-extern int h2rtos_wait_for_debugger( void );
-
-
 void dlog_debugger( const char *file, int line )
 {
 	const char * pos;
@@ -665,14 +569,15 @@ void dlog_debugger( const char *file, int line )
 	snprintf( dbg_loc, sizeof( dbg_loc ), "!DBGR: %d, %s\n", line, pos );
 	dbg_loc[63] = 0;
 
-	//dlog( kDebugLevelMax, "DEBUGGER: %s, %d\n", file, line );
-	dlog_platform( dbg_loc );
-
-// this seems to be OK on ARM32, but not ARM64
-//#if !TARGET_OS_UNIXLIKE
 #if ( ( __ARM_ARCH == 7 ) && ( __ARM_ARCH_PROFILE == 'M' ) )
-	//while(1) { __asm("bkpt #0"); };
-	h2rtos_wait_for_debugger();
+	while(1)
+	{
+	#if DEBUG_CONFIG_ENABLE_ARM_BREAKPOINT
+		__asm("bkpt #0");
+	#else
+		;
+	#endif
+	}
 #else
 
 	while ( 1 )
@@ -722,61 +627,5 @@ void __assert_func (const char *file,
 #endif
 
 	}
-}
-#endif
-
-
-// external
-void lwsl_emit_dlog(int level, const char *line);
-void lwsl_emit_dlog(int level, const char *line)
-{
-	dlog( kDebugLevelTrace, "%s", line );
-}
-
-// seems like another copy?
-int
-dlog_printf(const char * restrict format, ...);
-int
-dlog_printf(const char * restrict format, ...)
-{
-	int result;
-
-	va_list args;
-
-	va_start( args, format );
-	result = dlog_internal( NULL, NULL, format, args );
-	va_end( args );
-
-	return result;
-}
-
-// seems like another copy?
-int
-dlog_fprintf(FILE * restrict stream, const char * restrict format, ...);
-int
-dlog_fprintf(FILE * restrict stream, const char * restrict format, ...)
-{
-	int result;
-
-	va_list args;
-	(void)stream;
-
-	va_start( args, format );
-	result = dlog_internal( NULL, NULL, format, args );
-	va_end( args );
-
-	return result;
-}
-
-void dump_hex( const void * buf, size_t len );
-void dump_hex( const void * buf, size_t len )
-{
-	dlog_dump_hex( kDebugLevelMax, buf, len );
-}
-
-#if __APPLE__ || __NetBSD__ || __linux__ || TARGET_OS_ZEPHYR || TARGET_OS_FREERTOS
-void dlog_platform( const char *msg )
-{
-	fprintf( stderr, "%s", msg );
 }
 #endif

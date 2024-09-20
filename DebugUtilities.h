@@ -64,8 +64,10 @@ void dlog_include_procname( const char *pname );
 void dlog_set_file( FILE * f );
 void dlog_set_fd( int fd );
 
-int dlog( int level, const char *fmt, ... );
-int dlog_out( bool addNL, const char * fmt, va_list args );
+int dlog_imp( int level, bool add_nl, const char *fmt, ... );
+#define dlog( level, ... )	dlog_imp( level, false, __VA_ARGS__ )
+#define dlog_add_nl( level, ... ) dlog_imp( level, true, __VA_ARGS__ )
+
 int dlog_print_strings( int level, const char *prefix, const char *suffix, char * const strings[], size_t count );
 
 void dlog_dump_hex_options( int debugLevel, bool dupLineHandling, const char *label, const void * buffer, size_t len );
