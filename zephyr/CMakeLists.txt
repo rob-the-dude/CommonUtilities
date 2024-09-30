@@ -34,8 +34,9 @@ set(COMMON_UTILITIES_DIR ${ZEPHYR_CURRENT_MODULE_DIR})
 
 zephyr_library()
 
-# fix this...we need to allow compilation without DEBUG
-zephyr_compile_definitions(DEBUG=1)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+	zephyr_compile_definitions(DEBUG=1)
+endif()
 
 zephyr_library_sources(
 	../DebugUtilities.c

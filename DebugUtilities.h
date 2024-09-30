@@ -55,23 +55,17 @@
 extern "C" {
 #endif
 
-extern int	gDebugLevel;
-
 void dlog_set_level( int level );
 
-void dlog_include_timestamps( int onOrOff );
+void dlog_include_timestamps( bool onOrOff );
 void dlog_include_procname( const char *pname );
 void dlog_set_file( FILE * f );
-void dlog_set_fd( int fd );
 
 int dlog_imp( int level, bool add_nl, const char *fmt, ... );
 #define dlog( level, ... )	dlog_imp( level, false, __VA_ARGS__ )
 #define dlog_add_nl( level, ... ) dlog_imp( level, true, __VA_ARGS__ )
 
-int dlog_print_strings( int level, const char *prefix, const char *suffix, char * const strings[], size_t count );
-
 void dlog_dump_hex_options( int debugLevel, bool dupLineHandling, const char *label, const void * buffer, size_t len );
-
 void dlog_dump_hex( int level, const void* buffer, size_t length );
 
 #if defined(TARGET_OS_NONE) && TARGET_OS_NONE
@@ -80,6 +74,7 @@ void dlog_dump_hex( int level, const void* buffer, size_t length );
 	void debug_fail( int print_it );
 #endif
 
+#if DEBUGGER_SUPPORT
 #if __APPLE__
 	bool debug_running_in_debugger( void );
 #else
@@ -87,6 +82,8 @@ void dlog_dump_hex( int level, const void* buffer, size_t length );
 #endif
 
 void dlog_debugger( const char *file, int line );
+
+#endif
 
 void debug_fatal( const char *file, int line, char * expr );
 
@@ -98,19 +95,23 @@ void debug_fatal( const char *file, int line, char * expr );
 #else
 
 #define	dlog_set_level( level )
-#define dlog_set_file( file )
 
 #define dlog_include_timestamps( timestamps )
 #define dlog_include_procname( ignored )
 
-#define dlog( level, ... )
+#define dlog_set_file( file )
 
-#define dlog_dump_hex( level, addr, len )
+#define dlog( level, ... )
+#define dlog_add_nl( level, ... )
+
 #define dlog_dump_hex_options( level, dupHandling, indent, addr, len )
+#define dlog_dump_hex( level, addr, len )
 
 #define debug_fail( x )
 
 #define debug_running_in_debugger()		0
+
+#define debug_fatal( file, line, exp )
 
 #endif
 

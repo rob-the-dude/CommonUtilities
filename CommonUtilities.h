@@ -37,7 +37,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/types.h>
 
 // do we really care about TARGET_CPU ?
 
@@ -49,9 +48,9 @@
 	#if ( __ARM_ARCH == 7 ) || ( __ARM_ARCH == 8 )
 
 		#define TARGET_CPU_ARM		1
-		
+
 	#elif ( __amd64 ) || ( __x86_64 )
-	
+
 		#define TARGET_CPU_X86_64	1
 
 	#else
@@ -104,7 +103,6 @@
 		#ifndef TARGET_OS_ZEPHYR
 			#define TARGET_OS_ZEPHYR		0
 		#endif
-		
 
 		#define TARGET_OS_UNIXLIKE		1
 
@@ -174,9 +172,9 @@
 		// assume they know what they're doing
 
 	#elif __ZEPHYR__
-	
+
 		#define TARGET_OS_ZEPHYR		1
-		
+
 	#else
 
 		// this is the compiler we use for FreeRTOS, so assume that for now
@@ -193,6 +191,30 @@
 		#endif /* __LITTLE_ENDIAN__ */
 
 	#endif /* __BYTE_ORDER */
+
+	#if __ARMCOMPILER_VERSION
+
+	/* Keil/ARM compiler -- there are some things we may need to define... */
+	#include <errno.h>
+
+	#ifndef ENOMEM
+		#define ENOMEM	100
+	#endif
+
+	#ifndef ENOBUFS
+		#define ENOBUFS 101
+	#endif
+
+	#ifndef EBUSY
+		#define EBUSY 102
+	#endif
+
+	#ifndef ETIMEDOUT
+		#define ETIMEDOUT 103
+	#endif
+
+	#endif
+
 
 #else
 

@@ -40,10 +40,21 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <errno.h>
 
+#if TARGET_OS_UNIXLIKE
+#include <unistd.h>
+#endif
+
 #if DEBUG
+
+//	the code will attempt to determine which of these options it
+//	should use based on the environment, but you can force a selection
+//	by setting one of them to 1 here
+//#define CONFIG_DEBUG_TIMESTAMPS_LOCALTIME			0
+//#define CONFIG_DEBUG_TIMESTAMPS_RTC				0
+//#define CONFIG_DEBUG_TIMESTAMPS_UPTIME			0
+//#define CONFIG_DEBUG_TIMESTAMPS_TICKCOUNT			0
 
 #ifndef DEBUG_INCLUDE_TIME_STAMPS
 
@@ -51,12 +62,55 @@
 
 #endif
 
+#if defined(CONFIG_DEBUG_TIMESTAMPS_LOCALTIME) || defined(CONFIG_DEBUG_TIMESTAMPS_RTC) || defined(CONFIG_DEBUG_TIMESTAMPS_UPTIME) || defined( CONFIG_DEBUG_TIMESTAMPS_TICKCOUNT )
+
+	// assume they've selected the one they want
+
 #else
 
-	#define DEBUG_INCLUDE_TIME_STAMPS	0
+#if TARGET_OS_UNIXLIKE
+
+	#ifndef CONFIG_DEBUG_TIMESTAMPS_LOCALTIME
+		#define CONFIG_DEBUG_TIMESTAMPS_LOCALTIME	1
+	#endif
 
 #endif
 
+#if TARGET_OS_ZEPHYR
+
+	#if CONFIG_RTC
+
+		#ifndef CONFIG_DEBUG_TIMESTAMPS_RTC
+			#define CONFIG_DEBUG_TIMESTAMPS_RTC 1
+		#endif
+
+	#else
+
+		#ifndef CONFIG_DEBUG_TIMESTAMPS_UPTIME
+			#define CONFIG_DEBUG_TIMESTAMPS_UPTIME 1
+		#endif
+
+	#endif
+
+#endif
+
+#if TARGET_OS_FREERTOS
+
+	#ifndef CONFIG_DEBUG_TIMESTAMPS_TICKCOUNT
+		#define CONFIG_DEBUG_TIMESTAMPS_TICKCOUNT	1
+		#include <FreeRTOS.h>
+		#include <task.h>
+	#endif
+
+#endif
+
+#endif
+
+#endif
+
+// TODO: all of this code should go away if !DEBUG
+
+#if DEBUG
 
 int	gDebugLevel = kDebugLevelError;
 bool gDebugIncludeTimeStamps = DEBUG_INCLUDE_TIME_STAMPS;
@@ -79,6 +133,10 @@ static SemaphoreHandle_t	debugLogLock = NULL;
 
 K_MUTEX_DEFINE(debugLogLock);
 
+#if CONFIG_RTC
+	#include <zephyr/drivers/rtc.h>
+#endif
+
 #endif
 
 static void dlog_init_internal( void )
@@ -89,22 +147,19 @@ static void dlog_init_internal( void )
 		debugLogLock = xSemaphoreCreateMutex();
 	}
 #endif
-
 }
 
 #if defined(TARGET_OS_NETBSD) && TARGET_OS_NETBSD
 // may not be necessary any more? I think they fixed it based on my email to them
 #include "SocketUtilities.h"
-#endif
 
 static void dlog_force_sync( int fd )
 {
-#if defined(TARGET_OS_NETBSD) && TARGET_OS_NETBSD
 	// vdprintf doesn't work on non-blocking descriptors that aren't regular files?
 
 	SetBlocking( fd, 1 );
-#endif
 }
+#endif
 
 void dlog_set_level( int level )
 {
@@ -116,12 +171,8 @@ void dlog_set_level( int level )
 static int dlog_internal( const char *procname, const char *timestamp, bool add_nl, const char * fmt, va_list args )
 {
 	int result = 0;
-	
-	require( true, exit );
 
-#if defined(TARGET_OS_NETBSD) && TARGET_OS_NETBSD
-	dlog_force_sync( fileno( gDebugLogFile ) );
-#endif
+	require( true, exit );
 
 #if TARGET_OS_FREERTOS
 	require_quiet( debugLogLock != NULL, exit );
@@ -129,6 +180,10 @@ static int dlog_internal( const char *procname, const char *timestamp, bool add_
 
 	if ( gDebugLogFile == NULL )
 		gDebugLogFile = stderr;
+
+#if defined(TARGET_OS_NETBSD) && TARGET_OS_NETBSD
+	dlog_force_sync( fileno( gDebugLogFile ) );
+#endif
 
 #if TARGET_OS_FREERTOS
 	bool semTaken = false;
@@ -221,6 +276,8 @@ int dlog_imp( int debugLevel, bool add_nl, const char *fmt, ... )
 
 	if ( gDebugIncludeTimeStamps )
 	{
+#if CONFIG_DEBUG_TIMESTAMPS_LOCALTIME
+
 		time_t 		now;
 		struct tm 	*tm;
 
@@ -230,17 +287,50 @@ int dlog_imp( int debugLevel, bool add_nl, const char *fmt, ... )
 
 		snprintf( timestamp_buffer, sizeof( timestamp_buffer ), " %04d-%02d-%02d %02d:%02d:%02d : ", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec );
 		timestamp = timestamp_buffer;
+
+#elif CONFIG_DEBUG_TIMESTAMPS_RTC
+
+		struct rtc_time tm = { 0 };
+		const struct device *rtc = DEVICE_DT_GET( DT_ALIAS( rtc0 ) );
+		int err = rtc_get_time( rtc, &tm );
+		snprintf( timestamp_buffer, sizeof( timestamp_buffer ),
+			" %04d-%02d-%02d %02d:%02d:%02d : ",
+			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec );
+		timestamp = timestamp_buffer;
+
+#elif CONFIG_DEBUG_TIMESTAMPS_UPTIME
+
+		uint64_t	now = k_uptime_get();
+		snprintf( timestamp_buffer, sizeof( timestamp_buffer ),
+			" [%llu] : ", now );
+		timestamp = timestamp_buffer;
+
+#elif CONFIG_DEBUG_TIMESTAMPS_TICKCOUNT
+
+		TimeOut_t t;
+		vTaskInternalSetTimeOutState( &t );
+
+		snprintf( timestamp_buffer, sizeof( timestamp_buffer ),
+			" [%lu:%lu] : ", (unsigned long)t.xOverflowCount, (unsigned long)t.xTimeOnEntering );
+		timestamp = timestamp_buffer;
+
+#else
+
+		// no timestamp method configured
+
+#endif
 	}
 
 	va_start( args, fmt );
 	result = dlog_internal( procname, timestamp, add_nl, fmt, args );
 	va_end( args );
-	
+
 exit:
-	
+
 	return result;
 }
 
+#if 0
 int dlog_print_strings( int debugLevel, const char *prefix, const char *suffix, char * const strings[], size_t count )
 {
 	size_t i;
@@ -260,6 +350,7 @@ exit:
 
 	return 0;
 }
+#endif
 
 
 static uint8_t line_buffer_hex_offsets[]	= { 1, 4, 7, 10, 13, 16, 19, 22 };
@@ -363,6 +454,8 @@ void dlog_dump_hex( int debugLevel, const void * buffer, size_t len )
 }
 
 
+#if 0
+
 static void dlog_byte_to_hex_check( bool testCondition, uint8_t byte, char * pos )
 {
 	if ( testCondition )
@@ -428,22 +521,23 @@ exit:
 
 	ForgetMem( &out );
 }
+#endif
 
-
-#if defined(TARGET_OS_NONE) && TARGET_OS_NONE
-	// not supported...
-#else
-int gDebugDropIntoDebugger = 0;
+#if DEBUGGER_SUPPORT
+bool gDebugDropIntoDebugger = false;
+#endif
 
 void debug_fail( int print_it )
 {
 	if ( print_it )
 		dlog( kDebugLevelError, "debug_fail:\n" );
 
+#if DEBUGGER_SUPPORT
 	if ( gDebugDropIntoDebugger )
 	{
 		dlog_debugger( __FILE__, __LINE__ );
 	}
+#endif
 }
 
 void debug_fatal( const char *file, int line, char * failedexpr )
@@ -469,9 +563,8 @@ void debug_fatal( const char *file, int line, char * failedexpr )
 #endif
 	}
 }
-#endif
 
-void dlog_include_timestamps( int onOrOff )
+void dlog_include_timestamps( bool onOrOff )
 {
 	gDebugIncludeTimeStamps = onOrOff;
 }
@@ -551,6 +644,7 @@ bool debug_running_in_debugger( void )
 
 #endif
 
+#if DEBUGGER_SUPPORT
 void dlog_debugger( const char *file, int line )
 {
 	const char * pos;
@@ -591,14 +685,14 @@ void dlog_debugger( const char *file, int line )
 
 #endif
 }
+#endif
 
-#if TARGET_OS_FREERTOS || ( defined(TARGET_OS_NONE) && TARGET_OS_NONE )
+#if 0 // TARGET_OS_FREERTOS || ( defined(TARGET_OS_NONE) && TARGET_OS_NONE )
 void dlog_debugger_string( const char * msg )
 {
 	dlog( kDebugLevelMax, "%s", msg );
 	dlog_debugger( __FILE__, __LINE__ );
 }
-
 
 void __assert_func (const char *file,
   int line,
@@ -628,4 +722,6 @@ void __assert_func (const char *file,
 
 	}
 }
+#endif
+
 #endif
