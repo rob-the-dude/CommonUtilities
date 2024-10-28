@@ -213,6 +213,10 @@
 		#define ETIMEDOUT 103
 	#endif
 
+	#ifndef ENETDOWN
+		#define ENETDOWN 104
+	#endif
+
 	#endif
 
 
