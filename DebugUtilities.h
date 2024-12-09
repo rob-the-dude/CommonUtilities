@@ -55,6 +55,7 @@
 extern "C" {
 #endif
 
+extern int gDebugLevel;
 void dlog_set_level( int level );
 
 void dlog_include_timestamps( bool onOrOff );
@@ -62,8 +63,12 @@ void dlog_include_procname( const char *pname );
 void dlog_set_file( FILE * f );
 
 int dlog_imp( int level, bool add_nl, const char *fmt, ... );
-#define dlog( level, ... )	dlog_imp( level, false, __VA_ARGS__ )
-#define dlog_add_nl( level, ... ) dlog_imp( level, true, __VA_ARGS__ )
+
+#define dlog( level, ... )	\
+	do { if ( level >= gDebugLevel ) { dlog_imp( level, false, __VA_ARGS__ ); } } while(0)
+#define dlog_add_nl( level, ... )	\
+	do { if ( level >= gDebugLevel ) { dlog_imp( level, true, __VA_ARGS__ ); } } while(0)
+
 
 void dlog_dump_hex_options( int debugLevel, bool dupLineHandling, const char *label, const void * buffer, size_t len );
 void dlog_dump_hex( int level, const void* buffer, size_t length );
@@ -87,12 +92,20 @@ void dlog_debugger( const char *file, int line );
 
 void debug_fatal( const char *file, int line, char * expr );
 
+#ifndef __PRETTY_FILE__
+	#include <string.h>
+	#define __PRETTY_FILE__		( strrchr( __FILE__, '/' ) != NULL ? strrchr( __FILE__, '/' ) : __FILE__ )
+#endif
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-
 #else
+
+#ifndef __PRETTY_FILE__
+	#define __PRETTY_FILE__		__FILE__
+#endif
 
 #define	dlog_set_level( level )
 
@@ -121,7 +134,7 @@ void debug_fatal( const char *file, int line, char * expr );
 #ifdef check_compile_time
 	#undef check_compile_time
 #endif
-#define check_compile_time( expr )					extern int compile_time_check[ (expr) ? 1 : -1 ];
+#define check_compile_time( expr )					extern int compile_time_check[ (expr) ? 1 : -1 ]
 
 #ifdef check_compile_time_code
 	#undef check_compile_time_code
