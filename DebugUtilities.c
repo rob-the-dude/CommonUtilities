@@ -241,7 +241,9 @@ int dlog_imp( int debugLevel, bool add_nl, const char *fmt, ... )
 	va_list		args;
 	const char 	*procname = NULL;
 	const char	*timestamp = NULL;
+#if !TARGET_OS_NONE
 	char 		timestamp_buffer[80];
+#endif
 
 	result = 0;
 	require_quiet( debugLevel >= gDebugLevel, exit );

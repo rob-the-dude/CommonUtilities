@@ -73,11 +73,7 @@ int dlog_imp( int level, bool add_nl, const char *fmt, ... );
 void dlog_dump_hex_options( int debugLevel, bool dupLineHandling, const char *label, const void * buffer, size_t len );
 void dlog_dump_hex( int level, const void* buffer, size_t length );
 
-#if defined(TARGET_OS_NONE) && TARGET_OS_NONE
-	#define debug_fail( x )		do { ; } while(0)
-#else
-	void debug_fail( int print_it );
-#endif
+void debug_fail( int print_it );
 
 #if DEBUGGER_SUPPORT
 #if __APPLE__
