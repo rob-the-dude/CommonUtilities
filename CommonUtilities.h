@@ -165,7 +165,7 @@
 
 
 
-#elif ( ( __ARM_ARCH == 7 ) || ( __ARM_ARCH == 8 ) ) && ( __ARM_ARCH_PROFILE == 'M' )	// Cortex-M
+#elif ( ( __ARM_ARCH == 6 ) || ( __ARM_ARCH == 7 ) || ( __ARM_ARCH == 8 ) ) && ( __ARM_ARCH_PROFILE == 'M' )	// Cortex-M
 
 	#if defined(TARGET_OS_NONE) && TARGET_OS_NONE
 
