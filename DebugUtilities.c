@@ -131,6 +131,8 @@ static SemaphoreHandle_t	debugLogLock = NULL;
 
 #if TARGET_OS_ZEPHYR
 
+#include <zephyr/kernel.h>
+
 K_MUTEX_DEFINE(debugLogLock);
 
 #if CONFIG_RTC
