@@ -204,14 +204,28 @@ int	HexDecodeBuffer( const char* inString, size_t inStringLength, void *outvBuff
 	while ( i < inStringLength )
 	{
 		ch = inString[0];
-		require( ( ( ( ch >= '0' ) && ( ch <= '9' ) ) || ( ( ch >= 'A' ) && ( ch <= 'F' ) ) ), exit );
+		require(
+			(
+				( ( ch >= '0' ) && ( ch <= '9' ) ) ||
+				( ( ch >= 'A' ) && ( ch <= 'F' ) ) ||
+				( ( ch >= 'a' ) && ( ch <= 'f' ) )
+			), exit );
 
-		val = ( ( ch >= '0' ) && ( ch <= '9' ) ) ? ch - '0' : 0x0A + ( ch - 'A' );
+		val = ( ( ch >= '0' ) && ( ch <= '9' ) ) ? ch - '0' :
+			  ( ( ch >= 'A' ) && ( ch <= 'F' ) ) ? 0xA + ( ch - 'A' ) :
+			  0xA + ( ch - 'a' );
 		val <<= 4;
 
 		ch = inString[1];
-		require( ( ( ( ch >= '0' ) && ( ch <= '9' ) ) || ( ( ch >= 'A' ) && ( ch <= 'F' ) ) ), exit );
-		val |= ( ( ch >= '0' ) && ( ch <= '9' ) ) ? ch - '0' : 0x0A + ( ch - 'A' );
+		require(
+			(
+				( ( ch >= '0' ) && ( ch <= '9' ) ) ||
+				( ( ch >= 'A' ) && ( ch <= 'F' ) ) ||
+				( ( ch >= 'a' ) && ( ch <= 'f' ) )
+			), exit );
+		val |= ( ( ch >= '0' ) && ( ch <= '9' ) ) ? ch - '0' :
+			  ( ( ch >= 'A' ) && ( ch <= 'F' ) ) ? 0xA + ( ch - 'A' ) :
+			  0xA + ( ch - 'a' );
 
 		i+= 2;
 		inString += 2;
